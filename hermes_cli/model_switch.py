@@ -2320,6 +2320,17 @@ def list_authenticated_providers(
                     if any(os.environ.get(ev) for ev in pcfg.api_key_env_vars):
                         has_creds = True
                         break
+        # Cursor: `hermes cursor login` stores the credential in the SDK's
+        # shared store (~/.cursor/sdk/auth.json), not env vars, the Hermes
+        # auth store, or the credential pool — mirror the vertex gate above
+        # so the provider is not hidden from the /model picker when it is
+        # fully configured (and possibly the ACTIVE provider).
+        if not has_creds and hermes_slug == "cursor":
+            try:
+                from agent.cursor_sdk_auth import read_sdk_credentials
+                has_creds = read_sdk_credentials() is not None
+            except Exception as exc:
+                logger.debug("Cursor SDK login check failed: %s", exc)
         # Check auth store and credential pool for non-env-var credentials.
         # This applies to OAuth providers AND api_key providers that also
         # support OAuth (e.g. anthropic supports both API key and Claude Code

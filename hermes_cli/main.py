@@ -473,6 +473,7 @@ from hermes_cli.subcommands.logs import build_logs_parser
 from hermes_cli.subcommands.prompt_size import build_prompt_size_parser
 from hermes_cli.subcommands.memory import build_memory_parser
 from hermes_cli.subcommands.acp import build_acp_parser
+from hermes_cli.subcommands.cursor_agent import build_cursor_parser
 from hermes_cli.subcommands.tools import build_tools_parser
 from hermes_cli.subcommands.insights import build_insights_parser
 from hermes_cli.subcommands.monitoring import build_monitoring_parser
@@ -792,6 +793,7 @@ from hermes_cli.model_setup_flows import (
     _model_flow_named_custom,
     _model_flow_copilot,
     _model_flow_copilot_acp,
+    _model_flow_cursor,
     _model_flow_kimi,
     _model_flow_stepfun,
     _model_flow_bedrock_api_key,
@@ -3430,6 +3432,8 @@ def select_provider_and_model(args=None):
         _model_flow_minimax_oauth(config, current_model, args=args)
     elif selected_provider == "copilot-acp":
         _model_flow_copilot_acp(config, current_model)
+    elif selected_provider == "cursor":
+        _model_flow_cursor(config, current_model)
     elif selected_provider == "copilot":
         _model_flow_copilot(config, current_model)
     elif selected_provider == "custom":
@@ -12399,6 +12403,15 @@ def main():
     # acp command  (parser built in hermes_cli/subcommands/acp.py)
     # =========================================================================
     build_acp_parser(subparsers, cmd_acp=cmd_acp)
+
+    # =========================================================================
+    # cursor command  (parser built in hermes_cli/subcommands/cursor_agent.py)
+    # =========================================================================
+    # Lazy handler import: hermes_cli.cursor_cloud pulls in the agent bridge
+    # modules, which must not load during bare `hermes --help` startup.
+    from hermes_cli.cursor_cloud import cmd_cursor
+
+    build_cursor_parser(subparsers, cmd_cursor=cmd_cursor)
 
     # =========================================================================
     # profile command  (parser built in hermes_cli/subcommands/profile.py)

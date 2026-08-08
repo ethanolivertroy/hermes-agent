@@ -2010,6 +2010,136 @@ def _model_flow_copilot_acp(config, current_model=""):
 
     print(f"Default model set to: {selected} (via {pconfig.name})")
 
+
+def _model_flow_cursor(config, current_model=""):
+    """Cursor subscription flow via the official Cursor SDK bridge.
+
+    Uses the user's own CURSOR_API_KEY (cursor.com/dashboard → API Keys);
+    usage bills to their Cursor plan. Offers to install the sdk.v1 bridge
+    when none is found, then fetches the live account model catalog through
+    it (SdkCursorService.ListModels).
+    """
+    from hermes_cli.main import _prompt_api_key
+    from hermes_cli.auth import (
+        PROVIDER_REGISTRY,
+        _prompt_model_selection,
+        _save_model_choice,
+        deactivate_provider,
+    )
+    from hermes_cli.config import load_config, save_config
+    from hermes_cli.models import _PROVIDER_MODELS
+
+    del config
+
+    provider_id = "cursor"
+    pconfig = PROVIDER_REGISTRY[provider_id]
+    effective_base = pconfig.inference_base_url  # sdkbridge://cursor marker
+
+    print("  Cursor runs Hermes turns through the official Cursor SDK bridge.")
+    print("  You need your own Cursor account and API key — usage bills to")
+    print("  your Cursor plan. Hermes never proxies or resells Cursor inference.")
+    print()
+
+    # Step 1: API key
+    existing_key, existing_source = _existing_api_key_for_model_flow(provider_id, pconfig)
+    existing_key, abort = _prompt_api_key(
+        pconfig,
+        existing_key,
+        provider_id=provider_id,
+        existing_source=existing_source,
+    )
+    if abort:
+        return
+
+    # Step 2: bridge binary (offer install when missing)
+    from agent.cursor_bridge_transport import (
+        CursorBridgeError,
+        download_bridge,
+        resolve_bridge_command,
+    )
+
+    bridge_settings = load_config().get("cursor_bridge") or {}
+    configured_command = str(bridge_settings.get("command") or "")
+    bridge_command = resolve_bridge_command(configured_command)
+    if not bridge_command:
+        print("  The Cursor SDK bridge (cursor-sdk-bridge) is not installed.")
+        try:
+            answer = input("  Download it now? [Y/n]: ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            print()
+            answer = "n"
+        if answer in {"", "y", "yes"}:
+            try:
+                bridge_command = download_bridge(
+                    str(bridge_settings.get("download_version") or "")
+                )
+            except CursorBridgeError as exc:
+                print(f"  ⚠ {exc}")
+        if not bridge_command:
+            print("  Continuing without the bridge — install later with")
+            print("  `pip install cursor-sdk` or set cursor_bridge.command in config.yaml.")
+
+    # Step 3: model catalog through the bridge (best-effort)
+    model_list: list = []
+    if bridge_command and existing_key:
+        try:
+            from agent.cursor_bridge_client import CursorBridgeClient
+
+            print("  Fetching your Cursor model catalog...")
+            client = CursorBridgeClient(api_key=existing_key)
+            try:
+                catalog = client.list_models()
+            finally:
+                client.close()
+            model_list = [str(m.get("id") or "").strip() for m in catalog]
+            model_list = [m for m in model_list if m]
+            if model_list:
+                print(f"  Found {len(model_list)} model(s) on your Cursor account")
+        except Exception as exc:
+            print(f"  ⚠ Could not fetch the live catalog: {exc}")
+
+    if not model_list:
+        model_list = _PROVIDER_MODELS.get(provider_id, [])
+        if model_list:
+            print("  Showing default models — use \"Enter custom model name\" if")
+            print("  you do not see the model you want.")
+
+    if model_list:
+        selected = _prompt_model_selection(
+            model_list,
+            current_model=current_model,
+            confirm_provider=provider_id,
+            confirm_base_url=effective_base,
+            confirm_api_key=existing_key,
+        )
+    else:
+        try:
+            selected = input("Model name: ").strip()
+        except (KeyboardInterrupt, EOFError):
+            selected = None
+
+    if not selected:
+        print("No change.")
+        return
+
+    _save_model_choice(selected)
+
+    cfg = load_config()
+    model = cfg.get("model")
+    if not isinstance(model, dict):
+        model = {"default": model} if model else {}
+        cfg["model"] = model
+    model["provider"] = provider_id
+    model["base_url"] = effective_base
+    model["api_mode"] = "chat_completions"
+    clear_model_endpoint_credentials(model, clear_api_mode=False)
+    save_config(cfg)
+    deactivate_provider()
+
+    print(f"Default model set to: {selected} (via {pconfig.name})")
+    print("  Usage is billed to your own Cursor subscription.")
+
+
 def _model_flow_kimi(config, current_model=""):
     """Kimi / Moonshot model selection with automatic endpoint routing.
 

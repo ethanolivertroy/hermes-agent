@@ -668,6 +668,20 @@ def _resolve_api_key_provider_secret(
     except Exception:
         pass
 
+    # Cursor: fall back to the SDK's shared login store
+    # (~/.cursor/sdk/auth.json, filled by `hermes cursor login` or any Cursor
+    # SDK login). Shared resolver so the runtime gate, auth status, and
+    # doctor all see the login credential.
+    if provider_id == "cursor":
+        try:
+            from agent.cursor_sdk_auth import read_sdk_credentials
+
+            stored = read_sdk_credentials()
+            if stored:
+                return str(stored["apiKey"]), "cursor_sdk_login"
+        except Exception:
+            pass
+
     return "", ""
 
 

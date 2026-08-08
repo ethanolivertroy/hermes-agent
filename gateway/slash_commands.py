@@ -429,6 +429,59 @@ class GatewaySlashCommandsMixin:
             f"Slash commands you can run: {runnable_str}"
         )
 
+    async def _handle_cursor_command(self, event: MessageEvent) -> str:
+        """Handle /cursor — Cursor cloud-agent handoff on the user's own sub.
+
+        Runs the bridge/network work in a thread pool so the gateway event
+        loop stays responsive.  Safe while an agent is running: the cloud
+        agent is external state (Cursor's cloud), it never touches the
+        running agent's session.  Streaming verbs (watch, --wait) are not
+        offered here — messaging surfaces get the detached forms and can
+        poll with /cursor status; live mirroring goes through the existing
+        ``terminal(background=true, notify_on_complete=true)`` machinery.
+        """
+        import asyncio
+
+        from hermes_cli.cursor_cloud import run_slash
+
+        text = (event.text or "").strip()
+        if text.startswith("/"):
+            text = text.lstrip("/")
+        if text.startswith("cursor"):
+            text = text[len("cursor"):].lstrip()
+
+        verb = text.split()[0].lower() if text.split() else ""
+        if verb == "watch":
+            return (
+                "`/cursor watch` streams and is CLI-only. Use `/cursor status` "
+                "or `/cursor pull` here, or ask me to run "
+                "`hermes cursor watch` as a background terminal command with "
+                "notify_on_complete so the result lands back in this chat."
+            )
+        if verb == "login":
+            # The login URL must reach the user BEFORE polling starts, but
+            # this handler returns output only when the command completes —
+            # so interactive login stays on the CLI.
+            return (
+                "`/cursor login` is interactive and CLI-only — run "
+                "`hermes cursor login` in a terminal (the URL it prints can "
+                "be opened from any device signed in to cursor.com), or add "
+                "CURSOR_API_KEY to ~/.hermes/.env."
+            )
+
+        def _run() -> str:
+            collected: list[str] = []
+            result = run_slash(text, emit=collected.append)
+            if collected and result not in collected:
+                return "\n".join([*collected, result])
+            return result
+
+        try:
+            output = await asyncio.to_thread(_run)
+        except Exception as exc:
+            output = f"cursor cloud error: {exc}"
+        return output or "(no output)"
+
     async def _handle_kanban_command(self, event: MessageEvent) -> str:
         """Handle /kanban — delegate to the shared kanban CLI.
 

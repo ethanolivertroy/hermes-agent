@@ -1838,6 +1838,27 @@ class CLICommandsMixin:
         if output:
             print(output)
 
+    def _handle_cursor_command(self, cmd: str):
+        """Handle /cursor — delegate to the shared Cursor cloud-agent CLI.
+
+        Same shape as /kanban: strip the leading ``/cursor`` and hand the
+        remainder to ``cursor_cloud.run_slash`` which returns one formatted
+        string.
+        """
+        from hermes_cli.cursor_cloud import run_slash
+
+        rest = cmd.strip()
+        if rest.startswith("/"):
+            rest = rest.lstrip("/")
+        if rest.startswith("cursor"):
+            rest = rest[len("cursor"):].lstrip()
+        try:
+            output = run_slash(rest)
+        except Exception as exc:  # pragma: no cover - defensive
+            output = f"(._.) cursor cloud error: {exc}"
+        if output:
+            print(output)
+
     def _handle_skills_command(self, cmd: str):
         """Handle /skills slash command — delegates to hermes_cli.skills_hub."""
         from cli import ChatConsole

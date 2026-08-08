@@ -1305,6 +1305,26 @@ delegation:
   #                                           # Supported: openrouter, nous, zai, kimi-coding, minimax
 
 # =============================================================================
+# Cursor SDK Bridge (model.provider: cursor)
+# =============================================================================
+# Run Hermes turns through your own Cursor subscription via the official
+# cursor-sdk-bridge subprocess (https://github.com/cursor/sdk-bridge).
+# Auth: `hermes cursor login` (browser) or CURSOR_API_KEY in ~/.hermes/.env.
+#
+# cursor_bridge:
+#   command: ""              # Explicit bridge launcher path. Empty = auto-resolve
+#                            # (installed cursor-sdk wheel → PATH → ~/.hermes/cursor-sdk-bridge/).
+#   tool_mode: "loop"        # "loop" (default): Cursor's built-in tools stay off and
+#                            #   Hermes tools run inside Hermes's own loop (approvals,
+#                            #   budgets, interrupts all apply).
+#                            # "harness": Cursor's agent drives the whole turn and
+#                            #   executes Hermes tools inline via the callback service.
+#   builtin_tools: false     # Expose Cursor's built-in tools (file edit, shell, search)
+#                            # to the model. They bypass Hermes approvals — use with care.
+#   download_version: ""     # Bridge version for `hermes model` auto-install.
+#                            # Empty = the pinned default.
+
+# =============================================================================
 # Honcho Integration (Cross-Session User Modeling)
 # =============================================================================
 # AI-native persistent memory via Honcho (https://honcho.dev/).

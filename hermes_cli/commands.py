@@ -292,6 +292,11 @@ COMMAND_REGISTRY: list[CommandDef] = [
                             "notify-list", "notify-unsubscribe", "log", "runs",
                             "heartbeat", "assignees", "context", "specify", "gc"),
                busy_policy="dispatch"),
+    CommandDef("cursor", "Hand tasks to a Cursor cloud agent on your Cursor subscription",
+               "Tools & Skills", args_hint="[subcommand]",
+               subcommands=("login", "logout", "handoff", "send", "status", "runs",
+                            "pull", "watch", "list", "open"),
+               busy_policy="dispatch"),
     CommandDef("reload", "Reload .env variables into the running session", "Tools & Skills",
                cli_only=True),
     CommandDef("reload-mcp", "Reload MCP servers from config", "Tools & Skills",
@@ -1272,7 +1277,10 @@ _SLACK_PRIORITY_ALIASES = ("btw", "bg")
 #   - refine: on-demand memory/skill review; reached via /hermes refine on
 #     Slack. Added at the 50-cap — a native slot would clamp an existing
 #     native slash.
-_SLACK_VIA_HERMES_ONLY = frozenset({"topup", "moa", "debug", "egress", "init", "version", "diff", "update", "heartbeat", "refine"})
+#   - cursor: Cursor cloud-agent handoff; reached via /hermes cursor on
+#     Slack. Added at the 50-cap — a native slot would clamp an existing
+#     native slash and break Telegram parity.
+_SLACK_VIA_HERMES_ONLY = frozenset({"topup", "moa", "debug", "egress", "init", "version", "diff", "update", "heartbeat", "refine", "cursor"})
 
 
 def _sanitize_slack_name(raw: str) -> str:

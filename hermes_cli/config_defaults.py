@@ -1884,6 +1884,27 @@ DEFAULT_CONFIG = {
     # (apiKey, workspace, peerName, sessions, enabled) comes from the global config.
     "honcho": {},
 
+    # Cursor SDK bridge (model.provider: cursor) — runs Hermes turns through
+    # the user's own Cursor subscription via the official cursor-sdk-bridge
+    # subprocess. Auth (CURSOR_API_KEY) lives in .env; these are behavior knobs.
+    "cursor_bridge": {
+        # Explicit bridge launcher path. Empty = auto-resolve (installed
+        # cursor-sdk wheel → PATH → $HERMES_HOME/cursor-sdk-bridge/).
+        "command": "",
+        # "loop" (default): Cursor's built-in tools are disabled and Hermes
+        #   tools run inside Hermes's own loop (approvals, budget, interrupts
+        #   all apply). "harness": Cursor's agent drives the whole turn and
+        #   executes Hermes tools inline via the callback service.
+        "tool_mode": "loop",
+        # Expose Cursor's built-in tools (file edit, shell, codebase search)
+        # to the model. Only meaningful in harness mode; loop mode keeps them
+        # off so the Cursor harness cannot bypass Hermes approvals.
+        "builtin_tools": False,
+        # Bridge version for `hermes model` auto-install. Empty = the pinned
+        # default in agent/cursor_bridge_transport.py.
+        "download_version": "",
+    },
+
     # IANA timezone (e.g. "Asia/Kolkata", "America/New_York").
     # Empty string means use server-local time.
     "timezone": "",

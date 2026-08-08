@@ -94,6 +94,15 @@ HERMES_OVERLAYS: Dict[str, HermesOverlay] = {
         base_url_override="acp://copilot",
         base_url_env_var="COPILOT_ACP_BASE_URL",
     ),
+    # Cursor subscription — local sdk.v1 bridge subprocess, not a REST
+    # endpoint. The marker base URL routes client construction to
+    # agent/cursor_bridge_client.py.
+    "cursor": HermesOverlay(
+        transport="openai_chat",
+        auth_type="api_key",
+        extra_env_vars=("CURSOR_API_KEY",),
+        base_url_override="sdkbridge://cursor",
+    ),
     "github-copilot": HermesOverlay(
         transport="openai_chat",
         extra_env_vars=("COPILOT_GITHUB_TOKEN", "GH_TOKEN"),
@@ -319,6 +328,10 @@ ALIASES: Dict[str, str] = {
     "github": "github-copilot",
     "github-copilot-acp": "copilot-acp",
 
+    # cursor (subscription via the Cursor SDK bridge)
+    "cursor-sdk": "cursor",
+    "cursor-agent": "cursor",
+
     # vercel (models.dev ID for AI Gateway)
     "ai-gateway": "vercel",
     "aigateway": "vercel",
@@ -415,6 +428,7 @@ _LABEL_OVERRIDES: Dict[str, str] = {
     "nous": "Nous Portal",
     "openai-codex": "OpenAI Codex",
     "copilot-acp": "GitHub Copilot ACP",
+    "cursor": "Cursor",
     "stepfun": "StepFun Step Plan",
     "xiaomi": "Xiaomi MiMo",
     "gmi": "GMI Cloud",

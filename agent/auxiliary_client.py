@@ -2036,6 +2036,12 @@ def _maybe_wrap_anthropic(
             return client_obj
     except ImportError:
         pass
+    try:
+        from agent.cursor_bridge_client import CursorBridgeClient
+        if _safe_isinstance(client_obj, CursorBridgeClient):
+            return client_obj
+    except ImportError:
+        pass
 
     # Explicit non-anthropic api_mode wins over URL heuristics.
     if api_mode and api_mode != "anthropic_messages":
@@ -3231,7 +3237,7 @@ def _validate_base_url(base_url: str) -> None:
     from urllib.parse import urlparse
 
     candidate = str(base_url or "").strip()
-    if not candidate or candidate.startswith("acp://"):
+    if not candidate or candidate.startswith(("acp://", "sdkbridge://")):
         return
     try:
         parsed = urlparse(candidate)
@@ -5609,6 +5615,12 @@ def _to_async_client(sync_client, model: str, is_vision: bool = False):
             return sync_client, model
     except ImportError:
         pass
+    try:
+        from agent.cursor_bridge_client import CursorBridgeClient
+        if isinstance(sync_client, CursorBridgeClient):
+            return sync_client, model
+    except ImportError:
+        pass
 
     async_kwargs = {
         "api_key": sync_client.api_key,
@@ -6258,6 +6270,19 @@ def resolve_provider_client(
 
         default_model = _get_aux_model_for_provider(provider)
         final_model = _normalize_resolved_model(model or default_model, provider)
+
+        if provider == "cursor" or raw_base_url.startswith("sdkbridge://"):
+            # The Cursor SDK bridge is a local subprocess, not an HTTP
+            # endpoint — a plain OpenAI client on the marker URL can never
+            # connect ("Connection error" on every aux task). Mirror the
+            # copilot-acp arm: hand auxiliary tasks the OpenAI-compatible
+            # bridge client instead.
+            from agent.cursor_bridge_client import CursorBridgeClient
+
+            client = CursorBridgeClient(api_key=api_key, base_url=raw_base_url)
+            logger.debug("resolve_provider_client: %s (%s)", provider, final_model)
+            return (_to_async_client(client, final_model, is_vision=is_vision) if async_mode
+                    else (client, final_model))
 
         if provider == "gemini":
             from agent.gemini_native_adapter import GeminiNativeClient, is_native_gemini_base_url

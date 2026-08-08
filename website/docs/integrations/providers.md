@@ -18,6 +18,7 @@ You need at least one way to connect to an LLM. Use `hermes model` to switch pro
 | **OpenAI Codex** | `hermes model` (ChatGPT OAuth, uses Codex models) |
 | **GitHub Copilot** | `hermes model` (OAuth device code flow, `COPILOT_GITHUB_TOKEN`, `GH_TOKEN`, or `gh auth token`) |
 | **GitHub Copilot ACP** | `hermes model` (spawns local `copilot --acp --stdio`) |
+| **Cursor** | `hermes model` (your Cursor subscription via the official Cursor SDK bridge; `CURSOR_API_KEY`) |
 | **Anthropic** | `hermes model` (Claude Max + extra usage credits via OAuth; also supports Anthropic API key or manual setup-token — see note below) |
 | **OpenRouter** | `OPENROUTER_API_KEY` in `~/.hermes/.env` |
 | **Fireworks AI** | `FIREWORKS_API_KEY` in `~/.hermes/.env` (provider: `fireworks`; aliases: `fireworks-ai`, `fw`) |
@@ -237,6 +238,98 @@ model:
 | `COPILOT_GITHUB_TOKEN` | GitHub token for Copilot API (first priority) |
 | `HERMES_COPILOT_ACP_COMMAND` | Override the Copilot CLI binary path (default: `copilot`) |
 | `HERMES_COPILOT_ACP_ARGS` | Override ACP args (default: `--acp --stdio`) |
+
+### Cursor (Subscription)
+
+Run Hermes on your own [Cursor](https://cursor.com) subscription. Hermes talks
+to Cursor through the official [Cursor SDK bridge](https://github.com/cursor/sdk-bridge)
+(`sdk.v1` protocol) — the same runtime that powers Cursor's IDE, CLI, and SDK.
+
+```bash
+hermes cursor login     # browser login — mints a user API key on your account
+hermes model            # pick "Cursor" — offers to install the bridge and
+                        # fetches the model catalog from your account
+hermes chat --provider cursor --model composer-2.5
+```
+
+Auth, in priority order: `CURSOR_API_KEY` in `~/.hermes/.env`
+(cursor.com/dashboard → API Keys), else the SDK login store
+(`~/.cursor/sdk/auth.json`) filled by `hermes cursor login`. The login is the
+same PKCE flow the Cursor SDK ships: it mints a **named, expiring user API
+key** (~90 days, visible and revocable in the dashboard) and never persists
+your session tokens. The login URL can be opened from any device signed in to
+cursor.com, so it works on headless boxes too. `hermes cursor logout` forgets
+the stored login.
+
+**Billing and terms:** you bring your own Cursor account and API key. Usage
+bills to *your* Cursor plan; Hermes never proxies, pools, or resells Cursor
+inference. Model availability follows your plan.
+
+**How it works:** each turn, Hermes spawns a local `cursor-sdk-bridge`
+subprocess, creates a short-lived Cursor agent, and streams the run. Hermes
+tools are declared as SDK *custom tools* and execute back inside Hermes
+through a loopback callback service.
+
+Two tool modes (`cursor_bridge.tool_mode` in config.yaml):
+
+- **`loop`** (default) — Cursor's built-in tools are disabled; when the model
+  calls a Hermes tool the call returns into Hermes's own loop, so approvals,
+  budgets, interrupts, and agent-level tools (todo, memory) all behave exactly
+  like any other provider.
+- **`harness`** — Cursor's agent drives the whole turn and executes Hermes
+  tools inline via the callback service. Set `cursor_bridge.builtin_tools: true`
+  to also give the model Cursor's native file/shell/search tools (they bypass
+  Hermes approvals — use with care).
+
+```yaml
+model:
+  provider: "cursor"
+  default: "composer-2.5"   # or "auto" for server-side routing
+
+cursor_bridge:
+  command: ""               # explicit bridge path; empty = auto-resolve
+  tool_mode: "loop"
+  builtin_tools: false
+```
+
+The bridge binary resolves from (in order): `cursor_bridge.command`, an
+installed [`cursor-sdk`](https://pypi.org/project/cursor-sdk/) Python wheel,
+`CURSOR_SDK_BRIDGE_BIN`, `cursor-sdk-bridge` on PATH, then the Hermes-managed
+install under `~/.hermes/cursor-sdk-bridge/` (installed by `hermes model`).
+
+**Known limits:** the Cursor SDK does not allow custom system prompts, so
+Hermes context (system message, memory, skills) travels as prompt text;
+responses arrive complete rather than token-streamed.
+
+**Auxiliary tasks bill to your plan too.** Hermes does auxiliary tasks, for
+example title generation, compression, and vision. With `auxiliary.*.provider:
+"auto"` (the default), these tasks use your main provider. On Cursor, each
+auxiliary task starts a short agent run through the bridge, and Cursor bills
+those tokens to your subscription — the same as a chat turn. If you do not
+want auxiliary tasks on Cursor, turn the task off or send it to a different
+provider in `~/.hermes/config.yaml`:
+
+```yaml
+auxiliary:
+  title_generation:
+    enabled: false          # turn the task off entirely
+  # — or —
+  vision:
+    provider: "openrouter"  # keep chat on Cursor, move this task elsewhere
+    model: "google/gemini-3-flash-preview"
+```
+
+Each auxiliary task has its own configuration section — see
+[Auxiliary Models](/user-guide/configuration#auxiliary-models).
+
+**Cloud agents:** `hermes cursor handoff "<task>"` (or `/cursor handoff` in
+chat) hands a task to a durable **Cursor cloud agent** on the same
+subscription — visible and take-over-able at
+[cursor.com/agents](https://cursor.com/agents), in the Cursor IDE Agents
+window, and on mobile. `hermes cursor status|runs|pull|watch|send|list|open`
+manage it afterwards. To hear back in a live chat session, ask Hermes to run
+`hermes cursor watch <id>` as a background terminal command with
+`notify_on_complete=true`.
 
 ### First-Class API-Key Providers
 
